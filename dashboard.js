@@ -10,7 +10,7 @@ let DRIVE_TOOL = 'mcp__2438036f-6e75-4ad0-b86a-9e8ede271c1d__read_file_content';
 let STORE_KEY = 'tar_live_dashboard_v2';
 // Google Apps Script web app endpoint — primary data source.
 // Override via config.json `appsScriptUrl`.
-let APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyzkZ25TxzOmY8pZtxycIQxNcBxn-tZBqY3ZWN8nUIkjt84CFX_UKDSU1TnqjC9mln8/exec';
+let APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyE2Cp4L8a95rq5-bD5RtHq_9_WioM2To0LDSVmVrFcCZU5Q-9WuSo7KqiVwvuSgn6-/exec';
 
 
 // Corporate roles (Active Funnel + Funnel Performance)
@@ -179,15 +179,32 @@ function fmtShortDate(iso){
   if (isNaN(d.getTime())) return iso;
   return d.toLocaleDateString('en-GB',{day:'2-digit',month:'short'});
 }
-// Parse "19 May 2026" → "2026-05-19"
+// Parse a sheet-cell date string → ISO "YYYY-MM-DD". Accepts both
+// "19 May 2026" (spelled-out month) and "19/05/2026" / "19-05-2026" (numeric).
+// Returns null if neither format matches.
 const MONTHS = {jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12};
 function parseDateStr(s){
   if (!s) return null;
-  const m = s.trim().match(/^(\d{1,2})\s+(\w{3,})\s+(\d{4})/i);
-  if (!m) return null;
-  const day = parseInt(m[1],10), mon = MONTHS[m[2].slice(0,3).toLowerCase()], yr = parseInt(m[3],10);
-  if (!mon) return null;
-  return `${yr}-${String(mon).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+  const txt = String(s).trim();
+  // "19 May 2026"
+  let m = txt.match(/^(\d{1,2})\s+(\w{3,})\s+(\d{4})/i);
+  if (m) {
+    const day = parseInt(m[1],10);
+    const mon = MONTHS[m[2].slice(0,3).toLowerCase()];
+    const yr  = parseInt(m[3],10);
+    if (!mon) return null;
+    return `${yr}-${String(mon).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+  }
+  // "19/05/2026" or "19-05-2026" (numeric DD/MM/YYYY)
+  m = txt.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+  if (m) {
+    const day = parseInt(m[1],10);
+    const mon = parseInt(m[2],10);
+    const yr  = parseInt(m[3],10);
+    if (mon < 1 || mon > 12 || day < 1 || day > 31) return null;
+    return `${yr}-${String(mon).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+  }
+  return null;
 }
 
 // ════════════════════════════════════════════════════════════
@@ -265,12 +282,27 @@ function parseActiveFunnel(tables){
 //  PARSER: Funnel Performance (multi-day, Corp + Ind side by side)
 // ════════════════════════════════════════════════════════════
 function parseFunnelPerformance(tables){
-  // Find the table that has "Funnel Performance" + a date in any header
+  // Find the FP table. We accept two layouts:
+  //   (a) Old layout where header[0] combined date + label → "23 May 2026/Funnel Performance"
+  //   (b) New layout where header[0] is just the date ("23/05/2026") and a sibling
+  //       header in the same row contains "Funnel Performance" (or row 1 carries it).
+  // To handle both we look for ANY header cell that has "funnel performance",
+  // OR a header where header[0] is a date AND any other header contains a CORP_ROLE name.
   let t = null;
   for (const tbl of tables) {
     if (!tbl.headers) continue;
     const h0 = cleanText(tbl.headers[0]);
-    if (/funnel performance/i.test(h0) && parseDateStr(h0)) { t = tbl; break; }
+    const anyFP   = tbl.headers.some(h => /funnel performance/i.test(cleanText(h||'')));
+    const h0Date  = !!parseDateStr(h0);
+    const anyRole = tbl.headers.some(h => {
+      const c = cleanText(h||'').toLowerCase();
+      return CORP_ROLES.some(r => c === r.toLowerCase() || c.endsWith('/' + r.toLowerCase())) ||
+             IND_ROLES.some(r =>  c === r.toLowerCase() || c.endsWith('/' + r.toLowerCase()));
+    });
+    if ((anyFP && (h0Date || parseDateStr(cleanText(tbl.headers.slice(-1)[0]||'')))) ||
+        (h0Date && anyRole)) {
+      t = tbl; break;
+    }
   }
   if (!t) return null;
 
@@ -915,14 +947,53 @@ function jsonToMarkdown(data){
   return '';
 }
 
+// JSONP loader — avoids CORS by loading the response as a <script> tag
+// instead of via fetch(). Required because Apps Script's /exec redirects to
+// googleusercontent.com without preserving the Access-Control-Allow-Origin
+// header, so cross-origin fetch() requests fail. JSONP doesn't trigger CORS
+// since the browser allows cross-origin <script src>.
+function fetchViaJSONP(url, timeoutMs){
+  return new Promise((resolve, reject) => {
+    const cbName = '__tarJsonp_' + Date.now() + '_' + Math.floor(Math.random() * 1e6);
+    const sep    = url.indexOf('?') >= 0 ? '&' : '?';
+    const fullUrl = `${url}${sep}callback=${cbName}&cb=${Date.now()}`;
+    const script = document.createElement('script');
+    let done = false;
+    const cleanup = () => {
+      done = true;
+      try { delete window[cbName]; } catch(_) { window[cbName] = undefined; }
+      if (script.parentNode) script.parentNode.removeChild(script);
+    };
+    window[cbName] = (data) => { if (!done) { cleanup(); resolve(data); } };
+    script.onerror = () => { if (!done) { cleanup(); reject(new Error('JSONP script load error (network or 4xx/5xx)')); } };
+    script.src = fullUrl;
+    document.head.appendChild(script);
+    setTimeout(() => { if (!done) { cleanup(); reject(new Error('JSONP timeout (' + timeoutMs + 'ms)')); } }, timeoutMs || 30000);
+  });
+}
+
 async function fetchFromAppsScript(){
   if (!APPS_SCRIPT_URL) throw new Error('APPS_SCRIPT_URL is not configured');
+
+  // ── Path 1 — JSONP via <script src=…?callback=…>. Apps Script returns the
+  //    JSON wrapped in our callback, bypassing CORS entirely.
+  try {
+    console.log('[TAR sync] JSONP load:', APPS_SCRIPT_URL);
+    const data = await fetchViaJSONP(APPS_SCRIPT_URL, 30000);
+    const md = jsonToMarkdown(data);
+    if (md) return md;
+    console.warn('[TAR sync] JSONP succeeded but JSON shape not recognised — falling back to fetch');
+  } catch(e) {
+    console.warn('[TAR sync] JSONP path failed:', e.message);
+  }
+
+  // ── Path 2 — Plain fetch fallback (works if Apps Script CORS is fixed or
+  //    the page is served from a same-origin proxy).
   const url = APPS_SCRIPT_URL + (APPS_SCRIPT_URL.indexOf('?') >= 0 ? '&' : '?') + 'cb=' + Date.now();
   const resp = await fetch(url, { cache: 'no-store', redirect: 'follow' });
   if (!resp.ok) throw new Error(`HTTP ${resp.status} ${resp.statusText||''}`.trim());
   const text = await resp.text();
   if (!text.trim()) throw new Error('Apps Script returned empty body');
-  // Try JSON first; if not JSON, treat as raw text (markdown or CSV-ish)
   let parsed;
   try { parsed = JSON.parse(text); }
   catch(e) {
