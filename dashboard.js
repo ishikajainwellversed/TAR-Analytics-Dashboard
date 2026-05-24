@@ -8,6 +8,9 @@
 let SHEET_ID = '17hXqO2NePcOJIs08PkEh1wndDIhE4hlzmD0Lhfbxx1k';
 let DRIVE_TOOL = 'mcp__2438036f-6e75-4ad0-b86a-9e8ede271c1d__read_file_content';
 let STORE_KEY = 'tar_live_dashboard_v2';
+// Google Apps Script web app endpoint — primary data source.
+// Override via config.json `appsScriptUrl`.
+let APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbx41aUFS-lRgqLBmCh9g0X3f73T-LgoOMVrcx_ZFKN-5i2sjnXeHrpRfmWdGC684PA/exec';
 
 
 // Corporate roles (Active Funnel + Funnel Performance)
@@ -839,22 +842,132 @@ function extractSheetMarkdown(res){
   return '';
 }
 
+// ─── Google Apps Script web-app loader ──────────────────────────────────────
+//
+//   The dashboard now reads the Sheet through a Google Apps Script web app
+//   (URL in config.json → appsScriptUrl, or the APPS_SCRIPT_URL default at the
+//   top of this file). The script is expected to return one of these shapes
+//   (any of them works — the converter detects which):
+//
+//   a) { "Sheet Name 1": [[row1cells], [row2cells], ...],
+//        "Sheet Name 2": [[...], ...] }                — keyed by tab name
+//   b) [[row1cells], [row2cells], ...]                 — single 2D array
+//   c) [{ "name": "...", "values": [[...]] }, ...]    — array of sheet objs
+//   d) { "sheets": [{ "name": "...", "values": [[...]] }, ...] }
+//   e) plain text/markdown                             — passed straight through
+
+function rowsToMarkdown(rows){
+  if (!Array.isArray(rows) || !rows.length) return '';
+  const out = [];
+  let inSection = false;
+  let lastWidth = 0;
+  function pipeLine(cells){
+    return '| ' + cells.map(c => String(c == null ? '' : c).replace(/\|/g, '/')).join(' | ') + ' |';
+  }
+  for (const row of rows){
+    if (!Array.isArray(row)) continue;
+    const cells = row.map(c => (c == null ? '' : String(c)).trim());
+    const isBlank = cells.every(c => !c);
+    if (isBlank){ out.push(''); inSection = false; continue; }
+    let padded = cells.slice();
+    if (inSection && padded.length < lastWidth){
+      while (padded.length < lastWidth) padded.push('');
+    }
+    if (!inSection){
+      lastWidth = padded.length;
+      out.push(pipeLine(padded));
+      out.push('| ' + padded.map(() => ':-:').join(' | ') + ' |');
+      inSection = true;
+    } else {
+      out.push(pipeLine(padded));
+    }
+  }
+  return out.join('\n');
+}
+
+function jsonToMarkdown(data){
+  if (typeof data === 'string') return data;
+  if (!data || typeof data !== 'object') return '';
+
+  // Single 2D array
+  if (Array.isArray(data) && data.length && Array.isArray(data[0])) {
+    return rowsToMarkdown(data);
+  }
+  // Array of { name, values } sheet objects
+  if (Array.isArray(data) && data.length && (data[0].values || data[0].rows)) {
+    return data.map(s => rowsToMarkdown(s.values || s.rows || [])).filter(Boolean).join('\n\n');
+  }
+  // { sheets: [...] }
+  if (Array.isArray(data.sheets)) {
+    return data.sheets.map(s => rowsToMarkdown(s.values || s.rows || [])).filter(Boolean).join('\n\n');
+  }
+  // { sheetName: 2DArray, ... }
+  const parts = [];
+  for (const [, rows] of Object.entries(data)) {
+    if (Array.isArray(rows) && rows.length && Array.isArray(rows[0])) parts.push(rowsToMarkdown(rows));
+  }
+  if (parts.length) return parts.join('\n\n');
+
+  // Fallback fields some scripts use
+  if (typeof data.markdown === 'string') return data.markdown;
+  if (typeof data.text === 'string')     return data.text;
+  if (typeof data.content === 'string')  return data.content;
+  return '';
+}
+
+async function fetchFromAppsScript(){
+  if (!APPS_SCRIPT_URL) throw new Error('APPS_SCRIPT_URL is not configured');
+  const url = APPS_SCRIPT_URL + (APPS_SCRIPT_URL.indexOf('?') >= 0 ? '&' : '?') + 'cb=' + Date.now();
+  const resp = await fetch(url, { cache: 'no-store', redirect: 'follow' });
+  if (!resp.ok) throw new Error(`HTTP ${resp.status} ${resp.statusText||''}`.trim());
+  const text = await resp.text();
+  if (!text.trim()) throw new Error('Apps Script returned empty body');
+  // Try JSON first; if not JSON, treat as raw text (markdown or CSV-ish)
+  let parsed;
+  try { parsed = JSON.parse(text); }
+  catch(e) {
+    console.log('[TAR sync] Apps Script returned non-JSON text — passing through');
+    return text;
+  }
+  const md = jsonToMarkdown(parsed);
+  if (!md) {
+    console.error('[TAR sync] Apps Script JSON did not match any known shape:', parsed);
+    throw new Error('Apps Script JSON shape not recognised (see console)');
+  }
+  return md;
+}
+
 async function doSync(){
   const btns = document.querySelectorAll('.sync-btn');
   btns.forEach(b => { b.classList.add('syncing'); b.disabled = true; });
   toast('Reading sheet…');
   try {
-    if (!window.cowork || typeof window.cowork.callMcpTool !== 'function') {
-      throw new Error('Cowork bridge not available — open inside Cowork');
+    let md = '';
+
+    // Path A — Google Apps Script web app (default for hosted deployments)
+    if (APPS_SCRIPT_URL) {
+      try {
+        console.log('[TAR sync] fetching Apps Script:', APPS_SCRIPT_URL);
+        md = await fetchFromAppsScript();
+      } catch(e) {
+        console.warn('[TAR sync] Apps Script fetch failed:', e.message);
+      }
     }
-    console.log('[TAR sync] calling Drive tool…');
-    const res = await window.cowork.callMcpTool(DRIVE_TOOL, { fileId: SHEET_ID });
-    const md = extractSheetMarkdown(res);
-    if (!md) {
-      console.error('[TAR sync] could not extract markdown from response:', res);
-      throw new Error('Could not extract sheet content (see console)');
+
+    // Path B — Cowork bridge (when running inside the Cowork app and Path A failed)
+    if (!md && window.cowork && typeof window.cowork.callMcpTool === 'function') {
+      try {
+        console.log('[TAR sync] falling back to Cowork bridge…');
+        const res = await window.cowork.callMcpTool(DRIVE_TOOL, { fileId: SHEET_ID });
+        md = extractSheetMarkdown(res);
+      } catch(e) {
+        console.warn('[TAR sync] Cowork bridge also failed:', e.message);
+      }
     }
+
+    if (!md) throw new Error('Could not retrieve sheet data from Apps Script or Cowork bridge — see console');
     console.log('[TAR sync] markdown chars:', md.length);
+
     const parsed = parseSheet(md);
     console.log('[TAR sync] parsed:', {
       tables: parsed.tableCount,
@@ -863,6 +976,7 @@ async function doSync(){
       hiredCorp: parsed.hired?.corp?.length || 0,
       hiredInd: parsed.hired?.ind?.length || 0,
       agentsHRS: parsed.agents?.hrs?.total || 0,
+      attritionCount: parsed.attrition?.records?.length || 0,
       errors: parsed.parseErrors,
     });
     const today = todayISO();
@@ -2256,6 +2370,7 @@ async function loadConfig(){
     if (cfg.sheetId)            SHEET_ID            = cfg.sheetId;
     if (cfg.driveTool)          DRIVE_TOOL          = cfg.driveTool;
     if (cfg.storeKey)           STORE_KEY           = cfg.storeKey;
+    if (cfg.appsScriptUrl)      APPS_SCRIPT_URL     = cfg.appsScriptUrl;
     if (Array.isArray(cfg.corpRoles)) CORP_ROLES    = cfg.corpRoles;
     if (Array.isArray(cfg.indRoles))  IND_ROLES     = cfg.indRoles;
     if (cfg.manualAllocations && typeof cfg.manualAllocations === 'object') {

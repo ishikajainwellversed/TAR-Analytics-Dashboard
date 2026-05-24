@@ -1,6 +1,8 @@
 {
   "_comment": "Runtime configuration for the TAR · Hiring Analytics dashboard. dashboard.js fetches this file on init() and overrides the embedded defaults. Safe to edit by hand — keep valid JSON.",
 
+  "appsScriptUrl": "https://script.google.com/macros/s/AKfycbx41aUFS-lRgqLBmCh9g0X3f73T-LgoOMVrcx_ZFKN-5i2sjnXeHrpRfmWdGC684PA/exec",
+
   "sheetId":   "17hXqO2NePcOJIs08PkEh1wndDIhE4hlzmD0Lhfbxx1k",
   "driveTool": "mcp__2438036f-6e75-4ad0-b86a-9e8ede271c1d__read_file_content",
   "storeKey":  "tar_live_dashboard_v2",
