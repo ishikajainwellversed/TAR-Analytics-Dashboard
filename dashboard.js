@@ -901,12 +901,34 @@ function jsonToMarkdown(data){
   if (Array.isArray(data.sheets)) {
     return data.sheets.map(s => rowsToMarkdown(s.values || s.rows || [])).filter(Boolean).join('\n\n');
   }
-  // { sheetName: 2DArray, ... }
-  const parts = [];
-  for (const [, rows] of Object.entries(data)) {
-    if (Array.isArray(rows) && rows.length && Array.isArray(rows[0])) parts.push(rowsToMarkdown(rows));
+ // { sheetName: 2DArray OR object-array, ... }
+const parts = [];
+
+for (const [, rows] of Object.entries(data)) {
+
+  if (!Array.isArray(rows) || !rows.length) continue;
+
+  // CASE 1 → already 2D array
+  if (Array.isArray(rows[0])) {
+    parts.push(rowsToMarkdown(rows));
+    continue;
   }
-  if (parts.length) return parts.join('\n\n');
+
+  // CASE 2 → array of objects
+  if (typeof rows[0] === 'object') {
+
+    const headers = Object.keys(rows[0]);
+
+    const converted = [
+      headers,
+      ...rows.map(r => headers.map(h => r[h]))
+    ];
+
+    parts.push(rowsToMarkdown(converted));
+  }
+}
+
+if (parts.length) return parts.join('\n\n');
 
   // Fallback fields some scripts use
   if (typeof data.markdown === 'string') return data.markdown;
