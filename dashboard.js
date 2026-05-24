@@ -10,7 +10,7 @@ let DRIVE_TOOL = 'mcp__2438036f-6e75-4ad0-b86a-9e8ede271c1d__read_file_content';
 let STORE_KEY = 'tar_live_dashboard_v2';
 // Google Apps Script web app endpoint — primary data source.
 // Override via config.json `appsScriptUrl`.
-let APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbx41aUFS-lRgqLBmCh9g0X3f73T-LgoOMVrcx_ZFKN-5i2sjnXeHrpRfmWdGC684PA/exec';
+let APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyzkZ25TxzOmY8pZtxycIQxNcBxn-tZBqY3ZWN8nUIkjt84CFX_UKDSU1TnqjC9mln8/exec';
 
 
 // Corporate roles (Active Funnel + Funnel Performance)
