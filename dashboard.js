@@ -10,7 +10,7 @@ let DRIVE_TOOL = 'mcp__2438036f-6e75-4ad0-b86a-9e8ede271c1d__read_file_content';
 let STORE_KEY = 'tar_live_dashboard_v2';
 // Google Apps Script web app endpoint — primary data source.
 // Override via config.json `appsScriptUrl`.
-let APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbx41aUFS-lRgqLBmCh9g0X3f73T-LgoOMVrcx_ZFKN-5i2sjnXeHrpRfmWdGC684PA/exec';
+let APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyE2Cp4L8a95rq5-bD5RtHq_9_WioM2To0LDSVmVrFcCZU5Q-9WuSo7KqiVwvuSgn6-/exec';
 
 
 // Corporate roles (Active Funnel + Funnel Performance)
@@ -901,34 +901,12 @@ function jsonToMarkdown(data){
   if (Array.isArray(data.sheets)) {
     return data.sheets.map(s => rowsToMarkdown(s.values || s.rows || [])).filter(Boolean).join('\n\n');
   }
- // { sheetName: 2DArray OR object-array, ... }
-const parts = [];
-
-for (const [, rows] of Object.entries(data)) {
-
-  if (!Array.isArray(rows) || !rows.length) continue;
-
-  // CASE 1 → already 2D array
-  if (Array.isArray(rows[0])) {
-    parts.push(rowsToMarkdown(rows));
-    continue;
+  // { sheetName: 2DArray, ... }
+  const parts = [];
+  for (const [, rows] of Object.entries(data)) {
+    if (Array.isArray(rows) && rows.length && Array.isArray(rows[0])) parts.push(rowsToMarkdown(rows));
   }
-
-  // CASE 2 → array of objects
-  if (typeof rows[0] === 'object') {
-
-    const headers = Object.keys(rows[0]);
-
-    const converted = [
-      headers,
-      ...rows.map(r => headers.map(h => r[h]))
-    ];
-
-    parts.push(rowsToMarkdown(converted));
-  }
-}
-
-if (parts.length) return parts.join('\n\n');
+  if (parts.length) return parts.join('\n\n');
 
   // Fallback fields some scripts use
   if (typeof data.markdown === 'string') return data.markdown;
@@ -937,14 +915,53 @@ if (parts.length) return parts.join('\n\n');
   return '';
 }
 
+// JSONP loader — avoids CORS by loading the response as a <script> tag
+// instead of via fetch(). Required because Apps Script's /exec redirects to
+// googleusercontent.com without preserving the Access-Control-Allow-Origin
+// header, so cross-origin fetch() requests fail. JSONP doesn't trigger CORS
+// since the browser allows cross-origin <script src>.
+function fetchViaJSONP(url, timeoutMs){
+  return new Promise((resolve, reject) => {
+    const cbName = '__tarJsonp_' + Date.now() + '_' + Math.floor(Math.random() * 1e6);
+    const sep    = url.indexOf('?') >= 0 ? '&' : '?';
+    const fullUrl = `${url}${sep}callback=${cbName}&cb=${Date.now()}`;
+    const script = document.createElement('script');
+    let done = false;
+    const cleanup = () => {
+      done = true;
+      try { delete window[cbName]; } catch(_) { window[cbName] = undefined; }
+      if (script.parentNode) script.parentNode.removeChild(script);
+    };
+    window[cbName] = (data) => { if (!done) { cleanup(); resolve(data); } };
+    script.onerror = () => { if (!done) { cleanup(); reject(new Error('JSONP script load error (network or 4xx/5xx)')); } };
+    script.src = fullUrl;
+    document.head.appendChild(script);
+    setTimeout(() => { if (!done) { cleanup(); reject(new Error('JSONP timeout (' + timeoutMs + 'ms)')); } }, timeoutMs || 30000);
+  });
+}
+
 async function fetchFromAppsScript(){
   if (!APPS_SCRIPT_URL) throw new Error('APPS_SCRIPT_URL is not configured');
+
+  // ── Path 1 — JSONP via <script src=…?callback=…>. Apps Script returns the
+  //    JSON wrapped in our callback, bypassing CORS entirely.
+  try {
+    console.log('[TAR sync] JSONP load:', APPS_SCRIPT_URL);
+    const data = await fetchViaJSONP(APPS_SCRIPT_URL, 30000);
+    const md = jsonToMarkdown(data);
+    if (md) return md;
+    console.warn('[TAR sync] JSONP succeeded but JSON shape not recognised — falling back to fetch');
+  } catch(e) {
+    console.warn('[TAR sync] JSONP path failed:', e.message);
+  }
+
+  // ── Path 2 — Plain fetch fallback (works if Apps Script CORS is fixed or
+  //    the page is served from a same-origin proxy).
   const url = APPS_SCRIPT_URL + (APPS_SCRIPT_URL.indexOf('?') >= 0 ? '&' : '?') + 'cb=' + Date.now();
   const resp = await fetch(url, { cache: 'no-store', redirect: 'follow' });
   if (!resp.ok) throw new Error(`HTTP ${resp.status} ${resp.statusText||''}`.trim());
   const text = await resp.text();
   if (!text.trim()) throw new Error('Apps Script returned empty body');
-  // Try JSON first; if not JSON, treat as raw text (markdown or CSV-ish)
   let parsed;
   try { parsed = JSON.parse(text); }
   catch(e) {
