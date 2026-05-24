@@ -1,0 +1,32 @@
+{
+  "_comment": "Runtime configuration for the TAR · Hiring Analytics dashboard. dashboard.js fetches this file on init() and overrides the embedded defaults. Safe to edit by hand — keep valid JSON.",
+
+  "sheetId":   "17hXqO2NePcOJIs08PkEh1wndDIhE4hlzmD0Lhfbxx1k",
+  "driveTool": "mcp__2438036f-6e75-4ad0-b86a-9e8ede271c1d__read_file_content",
+  "storeKey":  "tar_live_dashboard_v2",
+
+  "corpRoles": [
+    "Brand School",
+    "Brand Events",
+    "Pharma R&D",
+    "Ecommerce"
+  ],
+  "indRoles": [
+    "Packaging",
+    "Data Entry",
+    "Loading/Unloading",
+    "Other"
+  ],
+
+  "_manualAllocations_help": "Each key is an agent name. Value is a map of { role -> [stages this agent handles for that role] }. Stage values are matched case-insensitively against the dashboard's STAGE_FRIENDLY table: 'Application Screening', 'Pipeline Screening', 'HRS', 'CFA'.",
+  "manualAllocations": {
+    "Aditi Chaudhary": { "Pharma R&D":   ["Application Screening", "HRS"] },
+    "Nibedita":        { "Pharma R&D":   ["Application Screening", "HRS"] },
+    "Saina":           { "Pharma R&D":   ["Application Screening", "HRS"] },
+    "Shoaib":          { "Brand Events": ["Application Screening", "HRS"] },
+    "Manvi":           { "Brand Events": ["Application Screening", "HRS"] },
+    "Shivanjali":      { "Brand Events": ["Application Screening", "HRS"] },
+    "Prateek Wangnoo": { "Brand Events": ["Application Screening", "HRS"] },
+    "Hunny Dhall":     { "Data Entry":   ["Pipeline Screening"] }
+  }
+}

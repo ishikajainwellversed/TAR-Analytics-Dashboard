@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>TAR: Hiring Analytics | Wellversed</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.js" integrity="sha384-iU8HYtnGQ8Cy4zl7gbNMOhsDTTKX02BTXptVP/vqAWIaTfM7isw76iyZCsjL2eVi" crossorigin="anonymous"></script>
+<style>
+:root { color-scheme: light; }
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+/* Web fonts — Inter (body) + Anton & DM Serif (highlight). Airbnb Cereal is proprietary;
+   we register the family name with a sensible fallback stack so the dashboard still looks
+   right if Wellversed loads Cereal on the host system. */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Anton&family=DM+Serif+Display:ital@0;1&display=swap');
+
+:root{
+  /* ── Wellversed brand palette ───────────────────────────────
+     Brand cyan = highlight + interactive
+     Primary black #0F0F0F = headings
+     Secondary black #1A1A1A = body text
+     Primary white #FFFFFF = light surface heading
+     Secondary white #E8E8E8 = body bg / divider on dark
+  */
+  --c:#32B4AC;--c10:rgba(50,180,172,.08);--c25:rgba(50,180,172,.22);--c50:rgba(50,180,172,.5);
+  --gold:#C48A1E;--gold10:rgba(196,138,30,.08);--gold25:rgba(196,138,30,.24);
+  /* Surfaces */
+  --s0:#F5F5F5;--s1:#FFFFFF;--s2:#FFFFFF;--s3:#F1F2F4;--s4:#E8E8E8;
+  /* Borders / dividers */
+  --b1:rgba(15,15,15,.06);--b2:rgba(15,15,15,.10);--b3:rgba(15,15,15,.18);
+  /* Text */
+  --txt:#0F0F0F;          /* heading / primary text */
+  --txt-body:#1A1A1A;     /* body text */
+  --muted:#525252;        /* secondary body */
+  --dim:#9CA3AF;          /* tertiary / placeholders */
+  /* Status palette */
+  --green:#16a34a;--green10:rgba(22,163,74,.08);--green25:rgba(22,163,74,.22);
+  --blue:#2563eb;--blue10:rgba(37,99,235,.08);--blue25:rgba(37,99,235,.22);
+  --purple:#7c3aed;--purple10:rgba(124,58,237,.08);--purple25:rgba(124,58,237,.22);
+  --red:#b91c1c;--red10:rgba(185,28,28,.08);--red25:rgba(185,28,28,.22);
+  --pink:#db2777;--pink10:rgba(219,39,119,.08);--pink25:rgba(219,39,119,.22);
+  --orange:#ea580c;--orange10:rgba(234,88,12,.08);--orange25:rgba(234,88,12,.22);
+  --sidebar-w:210px;
+  /* Fonts — primary heading "Airbnb Cereal" (with Inter fallback),
+     body Inter, highlights DM Serif Display + Anton */
+  --font-heading:'Airbnb Cereal','Cereal','Inter',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  --font:'Inter',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  --font-display:'DM Serif Display','Times New Roman',Georgia,serif;
+  --font-accent:'Anton',Impact,'Arial Narrow Bold',sans-serif;
+}
+html,body{height:100%;overflow:hidden;background:var(--s0)}
+body{color:var(--txt);font-family:var(--font);font-size:12px;display:flex}
+
+/* ─── SIDEBAR ─── */
+#sidebar{width:var(--sidebar-w);flex-shrink:0;background:var(--s1);border-right:1px solid var(--b1);display:flex;flex-direction:column;height:100vh;overflow:hidden}
+.sb-brand{padding:14px 16px;border-bottom:1px solid var(--b1)}
+.sb-brand-name{font-family:var(--font-heading);font-size:17px;color:var(--txt);letter-spacing:1.2px;font-weight:800}
+.sb-brand-name b{color:var(--c);font-style:italic;font-weight:normal}
+.sb-tagline{font-size:9px;color:var(--dim);letter-spacing:1.5px;text-transform:uppercase;margin-top:3px}
+.sb-nav{flex:1;overflow-y:auto;padding:10px 0}
+.sb-section-lbl{font-size:9px;color:var(--dim);letter-spacing:1.6px;text-transform:uppercase;padding:14px 16px 6px;font-weight:700}
+.sb-item{display:flex;align-items:center;gap:9px;padding:8px 16px;cursor:pointer;transition:all .15s;border-left:2px solid transparent;color:var(--muted);font-size:12px;font-weight:500}
+.sb-item:hover{background:var(--s3);color:var(--txt)}
+.sb-item.active{background:var(--s3);color:var(--c);border-left-color:var(--c);font-weight:600}
+.sb-icon{font-size:13px;opacity:.75;flex-shrink:0}
+.sb-badge{margin-left:auto;font-size:9px;background:var(--c10);color:var(--c);border:1px solid var(--c25);border-radius:10px;padding:1px 6px;font-weight:700}
+.sb-footer{padding:10px 14px;border-top:1px solid var(--b1);font-size:9px;color:var(--dim);letter-spacing:.4px}
+.live-dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--c);animation:pulse 2s infinite;margin-right:5px;vertical-align:middle}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+
+/* ─── MAIN ─── */
+#main{flex:1;display:flex;flex-direction:column;height:100vh;overflow:hidden;min-width:0}
+
+/* ─── TOPBAR ─── */
+.topbar{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:9px 18px;background:var(--s1);border-bottom:1px solid var(--b1);flex-shrink:0}
+.page-title{font-family:var(--font-heading);font-size:16px;color:var(--txt);font-weight:800;letter-spacing:.2px}
+.tb-right{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.seg{display:flex;border:1px solid var(--b2);border-radius:6px;overflow:hidden;background:var(--s1)}
+.seg button{padding:5px 13px;font-size:11px;font-family:var(--font);background:transparent;border:none;color:var(--muted);cursor:pointer;font-weight:600;letter-spacing:.3px;text-transform:uppercase;transition:all .15s}
+.seg button.on{background:var(--c);color:#fff}
+
+.sync-btn{display:flex;align-items:center;gap:6px;padding:5px 11px;border-radius:6px;background:var(--c);color:#fff;border:none;cursor:pointer;font-size:11px;font-weight:700;letter-spacing:.4px;font-family:var(--font);transition:all .15s}
+.sync-btn:hover{background:#0d8b83}
+.sync-btn:disabled{opacity:.6;cursor:wait}
+.sync-btn .sync-icon{display:inline-block;transition:transform .5s}
+.sync-btn.syncing .sync-icon{animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.date-pick,.date-pill-row select{padding:5px 10px;border:1px solid var(--b2);border-radius:6px;background:var(--s1);font-size:11px;color:var(--txt);font-family:var(--font);cursor:pointer}
+
+/* ─── Calendar-icon date picker for FP / Week views ─── */
+.cal-host{position:relative;display:inline-flex;align-items:center;gap:6px}
+.cal-btn{display:inline-flex;align-items:center;gap:6px;padding:5px 11px;border:1px solid var(--b2);border-radius:7px;background:var(--s1);font-size:11px;color:var(--txt);cursor:pointer;font-weight:600;letter-spacing:.2px;transition:all .15s;font-family:var(--font)}
+.cal-btn:hover{border-color:var(--c);color:var(--c);background:var(--c10)}
+.cal-btn .cal-ico{font-size:13px;line-height:1}
+.cal-btn .cal-caret{font-size:8px;opacity:.6}
+.cal-pop{position:absolute;top:calc(100% + 6px);right:0;background:#fff;border:1px solid var(--b1);border-radius:8px;box-shadow:0 8px 28px -8px rgba(0,0,0,.15);padding:9px;min-width:220px;z-index:50;display:none}
+.cal-pop.show{display:block}
+.cal-pop-head{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-weight:700;padding:0 4px 6px;border-bottom:1px solid var(--b1);margin-bottom:6px}
+.cal-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;max-height:240px;overflow-y:auto}
+.cal-day{padding:6px 8px;border-radius:5px;font-size:11px;color:var(--txt);background:var(--s2);border:1px solid var(--b1);cursor:pointer;text-align:center;font-weight:600;transition:all .12s}
+.cal-day:hover{background:var(--c10);border-color:var(--c);color:var(--c)}
+.cal-day.on{background:var(--c10);border-color:var(--c);color:var(--c)}
+.cal-day .cal-dow{display:block;font-size:8px;font-weight:500;color:var(--muted);text-transform:uppercase;margin-top:1px}
+.cal-day.on .cal-dow{color:var(--c);opacity:.85}
+
+/* ─── DATE PILLS ─── */
+.date-pill-row{display:flex;gap:6px;flex-wrap:wrap;padding:10px 18px;background:var(--s3);border-bottom:1px solid var(--b1);align-items:center;flex-shrink:0}
+.date-pill{padding:6px 12px;border-radius:18px;font-size:11px;font-weight:600;cursor:pointer;border:1px solid var(--b2);color:var(--muted);background:var(--s1);transition:all .15s;letter-spacing:.2px;font-family:var(--font)}
+.date-pill:hover{border-color:var(--c);color:var(--c)}
+.date-pill.on{border-color:var(--c);background:var(--c10);color:var(--c)}
+.date-pill.empty{opacity:.45;border-style:dashed}
+
+/* ─── BODY ─── */
+.body{flex:1;overflow-y:auto;padding:14px 18px 40px;background:var(--s0)}
+
+/* ─── ACTIVE FUNNEL CARDS (light-theme redesign, grouped sections) ─── */
+.afs-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:18px;align-items:start}
+.afs-card{background:var(--s1);border:1px solid var(--b1);border-radius:12px;padding:14px 14px 12px;display:flex;flex-direction:column;gap:11px}
+.afs-card-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.afs-card-head .afs-headleft{display:flex;align-items:center;gap:8px;min-width:0}
+.afs-code{font-size:9px;font-weight:700;letter-spacing:.8px;padding:3px 7px;border-radius:4px;color:#fff;font-family:var(--font);flex:0 0 auto}
+.afs-tag{font-size:8.5px;font-weight:700;letter-spacing:.8px;padding:2px 6px;border-radius:3px;color:var(--muted);background:var(--s4);font-family:var(--font);flex:0 0 auto}
+.afs-title{font-family:var(--font-heading);font-size:13.5px;font-weight:800;color:var(--txt);line-height:1.15;flex:1;min-width:0}
+.afs-status{display:flex;align-items:center;gap:5px;flex:0 0 auto}
+.afs-status-dot{width:7px;height:7px;border-radius:50%}
+.afs-status-dot.ok{background:#16a34a}
+.afs-status-dot.warn{background:#9ca3af}
+.afs-status-lbl{font-size:8.5px;font-weight:700;color:var(--muted);letter-spacing:.6px;text-transform:uppercase}
+
+.afs-section{display:flex;flex-direction:column;gap:5px;position:relative}
+.afs-section-lbl{font-size:8.5px;font-weight:700;letter-spacing:1.0px;text-transform:uppercase;color:var(--sec-c, var(--muted));padding:0 1px;display:flex;align-items:center;gap:6px}
+.afs-section-lbl::before{content:'';width:14px;height:2px;border-radius:1px;background:var(--sec-c, var(--b2));flex:0 0 auto}
+/* Per-section accent — applied via a CSS var on the section root. The primary
+   tile in each section picks up a faint tinted top-border for visual rhythm. */
+.afs-section .afs-tile{border-top:2px solid var(--sec-c, var(--b1))}
+.afs-section .afs-tile.sub{border-top-color:var(--b1)}
+.afs-section .afs-tile.backlog{border-top-color:#9CA3AF}
+.afs-tile{background:var(--s3);border:1px solid var(--b1);border-radius:7px;padding:7px 10px;display:flex;flex-direction:column;gap:2px;transition:all .12s}
+.afs-tile-lbl{font-size:9.5px;font-weight:700;letter-spacing:.4px;color:var(--muted);text-transform:uppercase}
+.afs-tile-val{font-family:var(--font-display);font-size:20px;font-weight:700;color:var(--txt);line-height:1.05}
+.afs-tile.sub{padding:6px 9px}
+.afs-tile.sub .afs-tile-val{font-size:15px}
+/* Backlog highlight — user wants GREY, not red. Slightly elevated grey with a small note. */
+.afs-tile.backlog{background:#EFF0F2;border-color:#CBD0D6;cursor:pointer}
+.afs-tile.backlog .afs-tile-lbl{color:#444}
+.afs-tile.backlog .afs-tile-val{color:#1A1A1A}
+.afs-tile.backlog:hover{background:#E5E7EB;border-color:#9CA3AF}
+.afs-backlog-note{display:flex;align-items:center;gap:5px;font-size:9.5px;font-weight:600;color:#525252;margin-top:3px;letter-spacing:.2px}
+.afs-backlog-note .afs-dot{width:5px;height:5px;border-radius:50%;background:#6b7280}
+.afs-tile.zero .afs-tile-val{color:var(--dim);font-weight:600}
+
+.afs-pair{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+
+/* Top header chips above the cards */
+.afs-topchips{display:flex;align-items:center;gap:7px;flex-wrap:wrap;padding:0 0 6px}
+.afs-topchip{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:18px;font-size:10.5px;font-weight:700;letter-spacing:.4px;background:var(--s3);color:var(--muted);border:1px solid var(--b1);text-transform:uppercase}
+.afs-topchip.on{background:var(--c10);color:var(--c);border-color:var(--c25)}
+.afs-topchip .count{background:#fff;color:inherit;padding:1px 6px;border-radius:9px;font-size:9.5px;min-width:18px;text-align:center;border:1px solid currentColor;opacity:.85}
+.afs-topchip.alert{background:#F1F2F4;color:#525252;border-color:#CBD0D6}
+.afs-topchip.alert .ico{font-size:11px;opacity:.7}
+
+/* ─── STAGE KPI TILES (screenshot-style) ─── */
+.kpi-strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:14px}
+.kpi-tile{background:var(--s1);border:1px solid var(--b1);border-radius:10px;padding:13px 15px;position:relative;overflow:hidden}
+.kpi-tile::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;border-radius:10px 10px 0 0}
+.kpi-tile.green::before{background:var(--green)}
+.kpi-tile.blue::before{background:var(--blue)}
+.kpi-tile.purple::before{background:var(--purple)}
+.kpi-tile.cyan::before{background:var(--c)}
+.kpi-tile.gold::before{background:var(--gold)}
+.kpi-tile.red::before{background:var(--red)}
+.kpi-tile.pink::before{background:var(--pink)}
+.kpi-tile.orange::before{background:var(--orange)}
+.kpi-name{font-size:10px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--muted);margin-bottom:8px}
+.kpi-num{font-family:var(--font-display);font-size:28px;font-weight:700;line-height:1}
+.kpi-tile.green .kpi-num{color:var(--green)}
+.kpi-tile.blue .kpi-num{color:var(--blue)}
+.kpi-tile.purple .kpi-num{color:var(--purple)}
+.kpi-tile.cyan .kpi-num{color:var(--c)}
+.kpi-tile.gold .kpi-num{color:var(--gold)}
+.kpi-tile.red .kpi-num{color:var(--red)}
+.kpi-tile.pink .kpi-num{color:var(--pink)}
+.kpi-tile.orange .kpi-num{color:var(--orange)}
+.kpi-sub{font-size:10px;color:var(--dim);margin-top:5px}
+
+/* ─── SECTION ─── */
+.section{margin-bottom:24px}
+.section-head{display:flex;align-items:center;gap:10px;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--b1)}
+.section-title{font-family:var(--font-heading);font-size:15px;font-weight:800;color:var(--txt);letter-spacing:.2px}
+.section-tag{font-size:9px;font-weight:700;letter-spacing:1.1px;padding:2px 7px;border-radius:3px;color:#fff;background:var(--c)}
+.section-tag.ind{background:var(--purple)}
+.section-sub{font-size:10px;color:var(--muted);margin-left:auto}
+
+/* ─── MATRIX TABLE ─── */
+.matrix{background:var(--s1);border:1px solid var(--b1);border-radius:10px;overflow:hidden}
+.matrix table{width:100%;border-collapse:collapse;font-size:11px}
+.matrix th,.matrix td{padding:9px 10px;text-align:right;border-bottom:1px solid var(--b1);border-right:1px solid var(--b1)}
+.matrix th:first-child,.matrix td:first-child{text-align:left;background:var(--s3);font-weight:600;color:var(--txt);position:sticky;left:0}
+.matrix th{font-size:9px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--muted);background:var(--s3);white-space:nowrap}
+.matrix td{font-family:var(--font-display);font-size:14px;font-weight:600;color:var(--txt)}
+.matrix td.zero{color:var(--dim);font-weight:400}
+.matrix tr:last-child td{border-bottom:none}
+.matrix td:last-child,.matrix th:last-child{border-right:none}
+.matrix tr.total-row td{background:var(--c10);color:var(--c);font-weight:700}
+.matrix tr.total-row td:first-child{background:var(--c10);color:var(--c)}
+
+/* ─── HIRING BLOCKS ─── */
+.hiring-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.hire-block{background:var(--s1);border:1px solid var(--b1);border-radius:10px;padding:14px 16px}
+.hire-block-head{display:flex;align-items:center;gap:10px;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--b1)}
+.hire-block-title{font-family:var(--font-heading);font-size:15px;font-weight:800;color:var(--txt)}
+.hire-block-total{margin-left:auto;font-family:var(--font-display);font-size:18px;font-weight:700;color:var(--gold)}
+.role-tile{border:1px solid var(--b1);border-radius:8px;margin-bottom:8px;overflow:hidden;background:var(--s1);transition:border-color .15s}
+.role-tile:last-child{margin-bottom:0}
+.role-tile-head{display:flex;align-items:center;gap:10px;padding:10px 12px;cursor:pointer;background:var(--s1);transition:background .15s}
+.role-tile-head:hover{background:var(--s3)}
+.role-tile.open .role-tile-head{background:var(--s3);border-bottom:1px solid var(--b1)}
+.role-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.role-name{font-size:12px;font-weight:600;color:var(--txt)}
+.role-count{margin-left:auto;font-family:var(--font-display);font-size:18px;font-weight:700}
+.role-chev{margin-left:8px;font-size:10px;color:var(--muted);transition:transform .15s}
+.role-tile.open .role-chev{transform:rotate(180deg)}
+.role-body{padding:8px 12px 10px;display:none}
+.role-tile.open .role-body{display:block}
+.cand-row{display:flex;align-items:flex-start;gap:8px;padding:7px 0;border-bottom:1px dashed var(--b1)}
+.cand-row:last-child{border-bottom:none}
+.cand-name{font-size:11px;font-weight:600;color:var(--txt);line-height:1.3}
+.cand-meta{font-size:10px;color:var(--muted);margin-top:2px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.cand-meta span+span::before{content:'·';margin-right:4px;color:var(--dim)}
+
+.status-badge{font-size:9px;font-weight:700;padding:2px 7px;border-radius:10px;text-transform:uppercase;letter-spacing:.4px;white-space:nowrap;flex-shrink:0}
+.status-doj{background:var(--purple10);color:var(--purple);border:1px solid var(--purple25)}
+.status-joined{background:var(--green10);color:var(--green);border:1px solid var(--green25)}
+.status-docpending{background:var(--gold10);color:var(--gold);border:1px solid var(--gold25)}
+.status-onhold{background:var(--orange10);color:var(--orange);border:1px solid var(--orange25)}
+.status-awaiting{background:var(--blue10);color:var(--blue);border:1px solid var(--blue25)}
+.status-rejected{background:var(--red10);color:var(--red);border:1px solid var(--red25)}
+.status-report{background:var(--c10);color:var(--c);border:1px solid var(--c25)}
+.status-submit{background:var(--pink10);color:var(--pink);border:1px solid var(--pink25)}
+.status-default{background:var(--s3);color:var(--muted);border:1px solid var(--b2)}
+
+/* ─── STATUS BAR ─── */
+.statusbar{padding:5px 18px;background:var(--s1);border-top:1px solid var(--b1);display:flex;gap:14px;font-size:9px;color:var(--dim);letter-spacing:.8px;text-transform:uppercase;flex-shrink:0;flex-wrap:wrap;align-items:center}
+.statusbar .a{color:var(--c);font-weight:600}
+
+/* ─── LOADING ─── */
+.loading{display:flex;align-items:center;justify-content:center;flex-direction:column;gap:10px;color:var(--muted);padding:50px}
+.spinner{width:24px;height:24px;border:2px solid var(--b2);border-top-color:var(--c);border-radius:50%;animation:spin .8s linear infinite}
+
+/* ─── TOAST ─── */
+#toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%) translateY(80px);background:var(--txt);color:#fff;padding:10px 18px;border-radius:8px;font-size:12px;font-weight:500;z-index:2000;transition:transform .25s ease;box-shadow:0 4px 16px rgba(0,0,0,.15);pointer-events:none}
+#toast.show{transform:translateX(-50%) translateY(0)}
+#toast.err{background:#b91c1c}
+#toast.ok{background:var(--green)}
+
+/* ─── PAGES ─── */
+#page-priorities,#page-active,#page-fp,#page-hiring,#page-agents,#page-attrition{display:none;flex-direction:column;height:100%;overflow:hidden;width:100%}
+#page-priorities.active,#page-active.active,#page-fp.active,#page-hiring.active,#page-agents.active,#page-attrition.active{display:flex}
+
+/* ─── Hiring Priorities page styles ─── */
+.hp-body{padding:10px 14px;overflow:auto;display:flex;flex-direction:column;gap:12px}
+.hp-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media (max-width:1100px){.hp-row{grid-template-columns:1fr}}
+.hp-card{background:var(--s1);border:1px solid var(--b1);border-radius:7px;padding:11px 12px;display:flex;flex-direction:column;gap:7px}
+.hp-card-head{display:flex;align-items:center;gap:8px;justify-content:space-between}
+.hp-card-title{font-size:12px;font-weight:700;color:var(--txt);letter-spacing:.04em;text-transform:uppercase}
+.hp-card-tag{font-size:9px;font-weight:700;padding:2px 7px;border-radius:9px;background:#0F9D941A;color:#0F9D94;border:1px solid #0F9D9440;letter-spacing:.05em}
+.hp-card-tag.ind{background:#7c3aed1A;color:#7c3aed;border-color:#7c3aed40}
+.hp-table{width:100%;border-collapse:collapse;font-size:11px}
+.hp-table th{text-align:left;font-weight:600;color:var(--muted);padding:6px 8px;border-bottom:1px solid var(--b1);font-size:10px;text-transform:uppercase;letter-spacing:.04em;cursor:pointer;user-select:none;transition:color .15s}
+.hp-table th:hover{color:var(--c)}
+.hp-table th.sorted{color:var(--c)}
+.hp-table th .sort-arr{font-size:8px;margin-left:3px;opacity:.7}
+.hp-table td{padding:7px 8px;border-bottom:1px solid var(--b1);color:var(--txt)}
+.hp-table tbody tr{transition:background .12s}
+.hp-table tbody tr:hover{background:var(--s2)}
+.hp-prio{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;font-weight:700;font-size:10px}
+.hp-prio.p1{background:#ef44441A;color:#dc2626;border:1.5px solid #ef444440}
+.hp-prio.p2{background:#f973161A;color:#ea580c;border:1.5px solid #f9731640}
+.hp-prio.p3{background:#eab3081A;color:#ca8a04;border:1.5px solid #eab30840}
+.hp-prio.p4{background:#3b82f61A;color:#2563eb;border:1.5px solid #3b82f640}
+.hp-prio.p5{background:#9ca3af1A;color:#4b5563;border:1.5px solid #9ca3af40}
+.hp-num{font-weight:600;font-feature-settings:'tnum'}
+.hp-num.dim{color:var(--muted)}
+
+/* Per-role row: position info (left) + Raised/Hired/Joined visual (right) */
+.hp-role-row{display:grid;grid-template-columns:minmax(220px,1fr) minmax(280px,1.4fr);gap:14px;align-items:center;padding:10px 12px;border:1px solid var(--b1);border-radius:8px;background:var(--s1);transition:transform .12s, box-shadow .12s}
+.hp-role-row + .hp-role-row{margin-top:8px}
+.hp-role-row:hover{transform:translateY(-1px);box-shadow:0 4px 12px -6px rgba(0,0,0,.12)}
+@media (max-width:780px){.hp-role-row{grid-template-columns:1fr}}
+.hp-role-info{display:flex;flex-direction:column;gap:5px;min-width:0}
+.hp-role-info-top{display:flex;align-items:center;gap:8px}
+.hp-role-name{font-size:13px;font-weight:700;color:var(--txt);line-height:1.2}
+.hp-role-meta{display:flex;gap:9px;flex-wrap:wrap;font-size:10.5px;color:var(--muted)}
+.hp-role-meta b{color:var(--txt);font-weight:600}
+.hp-role-vis{display:flex;align-items:center;justify-content:flex-end;gap:14px;min-height:96px;padding:6px 4px}
+.hp-vbubble{display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:50%;color:#fff;font-weight:700;text-shadow:0 1px 2px rgba(0,0,0,.18);transition:transform .15s;flex:0 0 auto}
+.hp-vbubble:hover{transform:scale(1.06)}
+.hp-vbubble .bb-num{font-size:16px;line-height:1}
+.hp-vbubble .bb-lbl{font-size:8px;font-weight:600;opacity:.95;letter-spacing:.05em;text-transform:uppercase;margin-top:2px}
+.hp-vis-divider{width:1px;height:50px;background:var(--b1);flex:0 0 auto;align-self:center}
+.hp-fill-chip{font-size:10px;font-weight:600;padding:3px 9px;border-radius:10px;display:inline-flex;align-items:center;gap:5px}
+/* Section header bar above each list */
+.hp-section-head{display:flex;align-items:center;gap:10px;padding:8px 4px}
+.hp-section-head .hp-card-title{margin:0}
+.hp-section-head .hp-section-count{font-size:10px;font-weight:700;padding:3px 8px;border-radius:9px;letter-spacing:.04em}
+.hp-section-head.corp .hp-section-count{background:#0F9D941A;color:#0F9D94;border:1px solid #0F9D9440}
+.hp-section-head.ind  .hp-section-count{background:#7c3aed1A;color:#7c3aed;border:1px solid #7c3aed40}
+
+/* ─── AGENTS ─── */
+#ap-analytics{display:flex;flex-direction:column;gap:7px;padding:9px 18px;background:var(--s3);border-bottom:1px solid var(--b1);flex-shrink:0}
+.ap-stat{background:var(--s1);border:1px solid var(--b1);border-radius:6px;padding:8px 12px;flex:1;min-width:110px;position:relative;overflow:hidden}
+.ap-stat::before{content:'';position:absolute;top:0;left:0;right:0;height:2px}
+.ap-stat.gold::before{background:var(--gold)}
+.ap-stat.cyan::before{background:var(--c)}
+.ap-stat.blue::before{background:var(--blue)}
+.ap-stat.purple::before{background:var(--purple)}
+.ap-stat-lbl{font-size:8px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:3px}
+.ap-stat-val{font-family:var(--font-display);font-size:14px;color:var(--txt);line-height:1.1;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ap-stat.gold .ap-stat-val{color:var(--gold)}
+.ap-stat.cyan .ap-stat-val{color:var(--c)}
+.ap-stat.blue .ap-stat-val{color:var(--blue)}
+.ap-stat.purple .ap-stat-val{color:var(--purple)}
+.ap-stat-sub{font-size:8px;color:var(--dim);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#ap-body{flex:1;overflow-y:auto;padding:14px 18px 40px;display:grid;grid-template-columns:repeat(2,1fr);gap:12px;align-content:start;width:100%}
+.ap-chart-card{background:var(--s1);border:1px solid var(--b1);border-radius:8px;padding:14px 16px}
+.ap-chart-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px}
+.ap-chart-title{font-family:var(--font-heading);font-size:14px;color:var(--txt);font-weight:800}
+.ap-chart-sub{font-size:10px;color:var(--muted);margin-top:2px}
+.ap-chart-total{font-family:var(--font-display);font-size:20px;font-weight:700;padding:3px 10px;border-radius:8px;line-height:1}
+.ap-chart-wrap{position:relative;height:190px}
+
+@media (max-width:900px){.hiring-grid{grid-template-columns:1fr}}
+
+/* ─── ATTRITION PAGE ─── */
+.atr-body{flex:1;overflow-y:auto;padding:14px 18px 40px;display:flex;flex-direction:column;gap:14px}
+.atr-summary-bar{display:flex;align-items:center;gap:14px;padding:8px 4px;font-size:11.5px;color:var(--muted)}
+.atr-summary-bar b{font-family:var(--font-display);font-size:18px;color:var(--txt);font-weight:700;margin-right:4px}
+.atr-summary-bar .sep{width:1px;height:14px;background:var(--b2)}
+.atr-kpi-section{display:flex;flex-direction:column;gap:7px}
+.atr-kpi-section-lbl{display:flex;align-items:center;gap:8px;font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--sec-c, var(--muted));padding:0 2px}
+.atr-kpi-section-lbl::before{content:'';width:14px;height:2px;border-radius:1px;background:var(--sec-c)}
+.atr-kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+@media (max-width:900px){.atr-kpis{grid-template-columns:repeat(2,1fr)}}
+@media (max-width:560px){.atr-kpis{grid-template-columns:1fr}}
+.atr-kpi{background:var(--s1);border:1px solid var(--b1);border-radius:10px;padding:12px 14px;display:flex;flex-direction:column;gap:4px;position:relative;overflow:hidden}
+.atr-kpi::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--kpi-c, var(--c))}
+.atr-kpi-lbl{font-size:9.5px;font-weight:700;letter-spacing:.6px;color:var(--muted);text-transform:uppercase}
+.atr-kpi-val{font-family:var(--font-display);font-size:26px;font-weight:700;color:var(--txt);line-height:1.05}
+.atr-kpi-val .unit{font-size:14px;color:var(--muted);font-family:var(--font);font-weight:500;margin-left:3px}
+.atr-kpi-sub{font-size:10px;color:var(--muted);margin-top:2px}
+
+.atr-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media (max-width:900px){.atr-row{grid-template-columns:1fr}}
+.atr-card{background:var(--s1);border:1px solid var(--b1);border-radius:10px;padding:13px 15px;display:flex;flex-direction:column;gap:9px}
+.atr-card-head{display:flex;align-items:center;justify-content:space-between}
+.atr-card-title{font-family:var(--font-heading);font-size:13px;font-weight:800;color:var(--txt);letter-spacing:.2px}
+.atr-card-tag{font-size:9px;font-weight:700;padding:2px 8px;border-radius:9px;background:var(--c10);color:var(--c);border:1px solid var(--c25);letter-spacing:.05em}
+.atr-donut-wrap{position:relative;height:190px}
+
+.atr-table-card{background:var(--s1);border:1px solid var(--b1);border-radius:10px;padding:13px 15px;display:flex;flex-direction:column;gap:10px}
+.atr-table-wrap{overflow-x:auto;max-height:520px;overflow-y:auto;border:1px solid var(--b1);border-radius:6px}
+.atr-table{width:100%;border-collapse:collapse;font-size:11.5px}
+.atr-table thead{position:sticky;top:0;background:var(--s3);z-index:1}
+.atr-table th{text-align:left;font-weight:700;color:var(--muted);padding:9px 10px;border-bottom:1px solid var(--b1);font-size:10px;text-transform:uppercase;letter-spacing:.04em;cursor:pointer;user-select:none}
+.atr-table th:hover{color:var(--c)}
+.atr-table th.sorted{color:var(--c)}
+.atr-table th .sort-arr{font-size:8px;margin-left:3px;opacity:.7}
+.atr-table td{padding:9px 10px;border-bottom:1px solid var(--b1);color:var(--txt);vertical-align:middle}
+.atr-table tbody tr{transition:background .12s}
+.atr-table tbody tr:hover{background:var(--s2)}
+.atr-name{font-weight:700;color:var(--txt)}
+.atr-cat-chip{display:inline-block;font-size:9px;font-weight:700;padding:2px 7px;border-radius:9px;letter-spacing:.04em;text-transform:uppercase}
+.atr-cat-chip.corp{background:#0F9D941A;color:#0F9D94;border:1px solid #0F9D9440}
+.atr-cat-chip.ind{background:#7c3aed1A;color:#7c3aed;border:1px solid #7c3aed40}
+.atr-num{font-family:var(--font-display);font-weight:700;color:var(--txt);font-feature-settings:'tnum'}
+.atr-num.quick{color:#dc2626}
+.atr-tenure{font-size:11px;color:var(--muted)}
+
+/* ─── FP CONTROL STRIP ─── */
+.fp-ctrl{display:flex;align-items:center;gap:8px;padding:8px 18px;background:var(--s3);border-bottom:1px solid var(--b1);flex-wrap:wrap;flex-shrink:0}
+.divider{width:1px;height:18px;background:var(--b2)}
+.chips{display:flex;gap:5px;flex-wrap:wrap}
+.chip{padding:4px 11px;border-radius:18px;font-size:10px;font-weight:700;cursor:pointer;border:1.5px solid var(--c25);color:var(--c);background:var(--s1);transition:all .15s;letter-spacing:.3px;text-transform:uppercase}
+.chip:hover{border-color:var(--c);background:var(--c10)}
+.chip.on{border-color:var(--c);background:var(--c10);color:var(--c)}
+.chip.off{border-color:var(--b2);background:var(--s1);color:var(--muted);opacity:.6}
+.chip.off:hover{opacity:1}
+
+/* ─── DONUT GRID ─── */
+.donut-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-bottom:18px}
+.donut-card{background:var(--s1);border:1px solid var(--b1);border-radius:10px;padding:11px 13px;position:relative}
+.donut-card.clickable{cursor:pointer;transition:border-color .15s,transform .15s}
+.donut-card.clickable:hover{border-color:var(--c);transform:translateY(-2px)}
+.donut-card.clickable::after{content:'↗';position:absolute;top:8px;right:10px;font-size:11px;color:var(--c);font-weight:700}
+.donut-head{font-size:9px;font-weight:700;letter-spacing:1.1px;text-transform:uppercase;color:var(--muted);margin-bottom:4px}
+.donut-wrap{position:relative;height:110px}
+.donut-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none}
+.donut-num{font-family:var(--font-display);font-size:22px;font-weight:700;color:var(--txt);line-height:1}
+.donut-sub{font-size:9px;color:var(--dim);margin-top:2px}
+.donut-legend{display:flex;flex-wrap:wrap;gap:4px 8px;margin-top:7px;font-size:9px;color:var(--muted)}
+.donut-legend span{display:inline-flex;align-items:center;gap:4px}
+.donut-legend span::before{content:'';width:7px;height:7px;border-radius:50%;background:var(--dim);display:inline-block;flex-shrink:0}
+
+/* ─── SHARED COLOR LEGEND (FP overall metrics) ─── */
+.shared-legend{display:flex;flex-wrap:wrap;gap:7px;align-items:center;padding:10px 12px;margin-bottom:14px;background:var(--s3);border:1px solid var(--b1);border-radius:8px}
+.shared-legend .legend-label{font-size:9px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--muted);margin-right:4px}
+.legend-chip{font-size:10px;font-weight:700;padding:3px 10px;border-radius:14px;color:#fff;letter-spacing:.3px;display:inline-flex;align-items:center;gap:5px;box-shadow:0 1px 3px rgba(15,23,42,.12)}
+.legend-chip b{background:rgba(255,255,255,.25);padding:1px 6px;border-radius:8px;font-weight:700}
+
+/* ─── HIRING DONUT LEGEND (colored pill chips) ─── */
+.hire-donut-legend{display:flex;flex-wrap:wrap;gap:6px;margin-top:11px;font-size:10px}
+.hire-donut-legend .legend-chip{font-size:10px;font-weight:700;padding:4px 11px;border-radius:14px;color:#fff;letter-spacing:.2px}
+.hire-donut-legend .legend-chip b{background:rgba(255,255,255,.28);padding:1px 7px;border-radius:8px;margin-left:5px;font-weight:700}
+
+/* ─── ROLE ROW (horizontal funnel) ─── */
+/* ─── Role × Stage HEATMAP (replaces the per-role bar charts) ─── */
+.fp-heatmap{background:var(--s1);border:1px solid var(--b1);border-radius:10px;padding:14px 16px;overflow-x:auto}
+.fp-heatmap-table{border-collapse:separate;border-spacing:6px;width:100%;table-layout:auto}
+.fp-heatmap-table th,.fp-heatmap-table td{text-align:center;vertical-align:middle}
+.fp-heatmap-table thead th{font-size:9.5px;font-weight:700;color:var(--muted);text-transform:none;letter-spacing:0;padding:4px 4px;border-bottom:none;cursor:default;line-height:1.15;max-width:96px;white-space:normal;word-break:keep-all}
+.fp-heatmap-table thead th:first-child{text-align:left}
+.fp-heatmap-table tbody tr td:first-child{text-align:left;font-size:12px;font-weight:600;color:var(--txt);padding:0 8px 0 4px;white-space:nowrap}
+.fp-cell{display:flex;align-items:center;justify-content:center;width:78px;height:50px;border-radius:8px;font-size:18px;font-weight:700;letter-spacing:.2px;cursor:default;transition:transform .12s, box-shadow .12s;font-feature-settings:'tnum'}
+.fp-cell.clickable{cursor:pointer}
+.fp-cell.clickable:hover{transform:translateY(-1px);box-shadow:0 4px 10px -4px rgba(0,0,0,.18)}
+/* Volume buckets — gradient ramp from a section's anchor color. Color is set inline as --hc */
+.fp-cell.b0{background:#f3f4f6;color:#9ca3af;font-weight:600;font-size:16px}
+.fp-cell.b1{background:color-mix(in srgb, var(--hc) 14%, #fff);color:color-mix(in srgb, var(--hc) 78%, #000)}
+.fp-cell.b2{background:color-mix(in srgb, var(--hc) 36%, #fff);color:color-mix(in srgb, var(--hc) 86%, #000)}
+.fp-cell.b3{background:color-mix(in srgb, var(--hc) 64%, #fff);color:#fff}
+.fp-cell.b4{background:var(--hc);color:#fff}
+.fp-heatmap-foot{display:flex;align-items:center;gap:10px;margin-top:12px;font-size:11px;color:var(--muted);flex-wrap:wrap}
+.fp-heatmap-foot .lbl{font-weight:700;letter-spacing:.04em;text-transform:uppercase;font-size:10px}
+.fp-leg-chip{display:inline-flex;align-items:center;gap:6px;font-size:11px;color:var(--txt);font-weight:600}
+.fp-leg-swatch{width:22px;height:14px;border-radius:4px}
+
+.role-row{background:var(--s1);border:1px solid var(--b1);border-radius:10px;padding:13px 15px;margin-bottom:12px}
+.role-row-head{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.role-row-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.role-row-name{font-family:var(--font-heading);font-size:14px;font-weight:700;color:var(--txt)}
+.role-row-total{margin-left:auto;font-size:10px;color:var(--muted);padding:3px 9px;border-radius:10px;background:var(--s3);font-weight:600}
+.role-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:7px}
+.role-tile-fp{background:var(--s1);border:1px solid var(--b1);border-radius:7px;padding:9px 11px;position:relative;transition:all .15s}
+.role-tile-fp.clickable{cursor:pointer}
+.role-tile-fp.clickable:hover{border-color:var(--c);transform:translateY(-1px)}
+.role-tile-fp.clickable::after{content:'';position:absolute;top:5px;right:6px;width:14px;height:14px;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='%230F9D94'%3E%3Crect x='2' y='4' width='4' height='2' rx='1'/%3E%3Crect x='2' y='7' width='6' height='2' rx='1'/%3E%3Crect x='2' y='10' width='5' height='2' rx='1'/%3E%3Crect x='8' y='4' width='6' height='8' rx='1'/%3E%3C/svg%3E");background-size:11px;background-repeat:no-repeat;background-position:center;opacity:.5}
+.role-tile-fp.clickable:hover::after{opacity:1}
+.role-tile-fp-name{font-size:9px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--muted);margin-bottom:5px}
+.role-tile-fp-num{font-family:var(--font-display);font-size:18px;font-weight:700;line-height:1}
+.role-tile-fp.zero .role-tile-fp-num{color:var(--dim);opacity:.5}
+.role-chart-wrap{margin-top:11px;height:120px;position:relative}
+
+/* ─── HIRING DONUT ROW ─── */
+.hire-donut-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+.hire-donut-card{background:var(--s1);border:1px solid var(--b1);border-radius:10px;padding:14px 16px}
+.hire-donut-head{font-family:var(--font-display);font-size:13px;font-weight:700;color:var(--txt);margin-bottom:10px;display:flex;align-items:center;gap:8px}
+.hire-donut-wrap{position:relative;height:170px}
+.hire-donut-legend{display:flex;flex-wrap:wrap;gap:5px 10px;margin-top:10px;font-size:10px;color:var(--muted)}
+.hire-donut-legend span{display:inline-flex;align-items:center;gap:5px}
+.hire-donut-legend span::before{content:'';width:8px;height:8px;border-radius:50%;background:var(--dim)}
+@media (max-width:900px){.hire-donut-row{grid-template-columns:1fr}}
+
+/* ─── AGENT MODAL ─── */
+#agent-modal-bg{display:none;position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:1500;align-items:center;justify-content:center}
+#agent-modal-bg.show{display:flex}
+#agent-modal{background:var(--s1);border:1px solid var(--c25);border-radius:12px;width:min(620px,92vw);max-height:80vh;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 12px 40px rgba(15,23,42,.18)}
+.amod-head{display:flex;align-items:flex-start;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--b1)}
+.amod-title{font-family:var(--font-display);font-size:15px;font-weight:700;color:var(--txt)}
+.amod-sub{font-size:10px;color:var(--muted);margin-top:2px}
+.amod-close{border:1px solid var(--b2);background:var(--s1);border-radius:5px;color:var(--muted);padding:4px 10px;font-size:11px;cursor:pointer;font-family:var(--font)}
+.amod-close:hover{border-color:var(--c);color:var(--c)}
+.amod-body{padding:14px 18px 18px;overflow-y:auto}
+.amod-chart-wrap{position:relative;height:280px}
+</style>
+</head>
+<body>
+
+<div id="toast"></div>
+
+<!-- ─── AGENT MODAL ─── -->
+<div id="agent-modal-bg" onclick="if(event.target===this)closeAgentModal()">
+  <div id="agent-modal">
+    <div class="amod-head">
+      <div>
+        <div class="amod-title" id="amod-title">Agent breakdown</div>
+        <div class="amod-sub" id="amod-sub">—</div>
+      </div>
+      <button class="amod-close" onclick="closeAgentModal()">✕</button>
+    </div>
+    <div class="amod-body">
+      <div class="amod-chart-wrap"><canvas id="amod-canvas"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- ─── SIDEBAR ─── -->
+<div id="sidebar">
+  <div class="sb-brand">
+    <div class="sb-brand-name">TAR · <b>Hiring</b></div>
+    <div class="sb-tagline">Hiring Analytics | Wellversed</div>
+  </div>
+  <div class="sb-nav">
+    <div class="sb-section-lbl">Analytics</div>
+    <div class="sb-item active" data-page="priorities" onclick="showPage('priorities')">
+      <span class="sb-icon">★</span><span>Hiring Priorities</span>
+    </div>
+    <div class="sb-item" data-page="active" onclick="showPage('active')">
+      <span class="sb-icon">◈</span><span>Active Funnel States</span>
+      <span class="sb-badge">Live</span>
+    </div>
+    <div class="sb-item" data-page="fp" onclick="showPage('fp')">
+      <span class="sb-icon">▦</span><span>Funnel Performance</span>
+    </div>
+    <div class="sb-item" data-page="hiring" onclick="showPage('hiring')">
+      <span class="sb-icon">◎</span><span>Hiring Status Tracker</span>
+    </div>
+    <div class="sb-item" data-page="agents" onclick="showPage('agents')">
+      <span class="sb-icon">◧</span><span>People Metrics</span>
+    </div>
+    <div class="sb-item" data-page="attrition" onclick="showPage('attrition')">
+      <span class="sb-icon">◷</span><span>Attrition 2026</span>
+    </div>
+  </div>
+  <div class="sb-footer">
+    <span class="live-dot"></span>Synced <span id="last-sync">—</span>
+  </div>
+</div>
+
+<!-- ─── MAIN ─── -->
+<div id="main">
+
+  <!-- ════════════ PAGE: HIRING PRIORITIES ════════════ -->
+  <div id="page-priorities" class="active">
+    <div class="topbar">
+      <div class="page-title">Hiring Priorities</div>
+      <div class="tb-right">
+        <div style="font-size:11px;color:var(--muted);padding:4px 10px;border:1px solid var(--b1);border-radius:5px;background:var(--s1)" id="hp-date">📅 —</div>
+        <button class="sync-btn" onclick="doSync()"><span class="sync-icon">⟳</span><span>Sync</span></button>
+      </div>
+    </div>
+    <div class="hp-body" id="hp-body">
+      <div class="loading"><div class="spinner"></div><span>Loading hiring priorities…</span></div>
+    </div>
+  </div>
+
+  <!-- ════════════ PAGE: ACTIVE FUNNEL STATES ════════════ -->
+  <div id="page-active">
+    <div class="topbar">
+      <div class="page-title">Active Funnel States · Corporate</div>
+      <div class="tb-right">
+        <div id="afs-date" style="font-size:11px;color:var(--muted);padding:4px 11px;border:1px solid var(--b1);border-radius:5px;background:var(--s1)">📅 —</div>
+        <button class="sync-btn" onclick="doSync()"><span class="sync-icon">⟳</span><span>Sync</span></button>
+      </div>
+    </div>
+    <div class="body" id="afs-body">
+      <div class="loading"><div class="spinner"></div><span>Syncing from Google Sheet…</span></div>
+    </div>
+    <div class="statusbar">
+      <span>Data · <span class="a" id="sb-conn">—</span></span>
+      <span style="margin-left:auto;color:var(--dim)">TAR · OPS · LIVE v2</span>
+    </div>
+  </div>
+
+  <!-- ════════════ PAGE: FUNNEL PERFORMANCE ════════════ -->
+  <div id="page-fp">
+    <div class="topbar">
+      <div class="page-title">Funnel Performance</div>
+      <div class="tb-right">
+        <div class="seg">
+          <button id="fpv-day" class="on" onclick="setFpView('day')">Day</button>
+          <button id="fpv-week" onclick="setFpView('week')">Week</button>
+          <button id="fpv-month" onclick="setFpView('month')">Month</button>
+        </div>
+        <!-- Calendar-icon date picker (Day + Week views) -->
+        <div class="cal-host" id="fp-cal-host">
+          <button class="cal-btn" id="fp-cal-btn" onclick="toggleFpCal(event)">
+            <span class="cal-ico">📅</span><span id="fp-cal-label">—</span><span class="cal-caret">▾</span>
+          </button>
+          <div class="cal-pop" id="fp-cal-pop">
+            <div class="cal-pop-head">Pick a date</div>
+            <div class="cal-grid" id="fp-cal-grid"></div>
+          </div>
+        </div>
+        <button class="sync-btn" onclick="doSync()"><span class="sync-icon">⟳</span><span>Sync</span></button>
+      </div>
+    </div>
+    <div class="fp-ctrl">
+      <div class="seg" id="fp-type-seg">
+        <button id="fpt-corp" class="on" onclick="setFpType('corp')">Corporate</button>
+        <button id="fpt-ind" onclick="setFpType('ind')">Industrial</button>
+        <button id="fpt-all" onclick="setFpType('all')">All</button>
+      </div>
+      <div class="divider"></div>
+      <div class="chips" id="fp-role-chips"></div>
+      <div class="date-pick" style="margin-left:auto;color:var(--muted);font-size:10px;border:1px solid var(--b1);background:var(--s1);padding:4px 10px" id="fp-period">📅 —</div>
+    </div>
+    <div class="body" id="fp-body">
+      <div class="loading"><div class="spinner"></div><span>Loading funnel data…</span></div>
+    </div>
+  </div>
+
+  <!-- ════════════ PAGE: HIRING ════════════ -->
+  <div id="page-hiring">
+    <div class="topbar">
+      <div class="page-title">Hiring Status Tracker</div>
+      <div class="tb-right">
+        <div style="font-size:11px;color:var(--muted);padding:4px 11px;border:1px solid var(--b1);border-radius:5px;background:var(--s1)">May 2026</div>
+        <button class="sync-btn" onclick="doSync()"><span class="sync-icon">⟳</span><span>Sync</span></button>
+      </div>
+    </div>
+    <div class="body" id="hire-body">
+      <div class="loading"><div class="spinner"></div><span>Loading hiring data…</span></div>
+    </div>
+  </div>
+
+  <!-- ════════════ PAGE: AGENTS ════════════ -->
+  <div id="page-agents">
+    <div class="topbar">
+      <div class="page-title">People Metrics</div>
+      <div class="tb-right">
+        <div class="seg">
+          <button id="apv-day" class="on" onclick="setAgentView('day')">Day</button>
+          <button id="apv-week" onclick="setAgentView('week')">Week</button>
+          <button id="apv-month" onclick="setAgentView('month')">Month</button>
+        </div>
+        <!-- Calendar-icon date picker (mirrors the FP version) -->
+        <div class="cal-host" id="ap-cal-host">
+          <button class="cal-btn" id="ap-cal-btn" onclick="toggleAgentCal(event)">
+            <span class="cal-ico">📅</span><span id="ap-cal-label">—</span><span class="cal-caret">▾</span>
+          </button>
+          <div class="cal-pop" id="ap-cal-pop">
+            <div class="cal-pop-head">Pick a date</div>
+            <div class="cal-grid" id="ap-cal-grid"></div>
+          </div>
+        </div>
+        <button class="sync-btn" onclick="doSync()"><span class="sync-icon">⟳</span><span>Sync</span></button>
+      </div>
+    </div>
+    <div id="ap-analytics">
+      <div style="display:flex;gap:7px;width:100%;flex-wrap:wrap">
+        <div class="ap-stat cyan" style="flex:1"><div class="ap-stat-lbl">Top HRS Agent</div><div class="ap-stat-val" id="top-hrs">—</div><div class="ap-stat-sub" id="top-hrs-sub">—</div></div>
+        <div class="ap-stat blue" style="flex:1"><div class="ap-stat-lbl">Top LIS Agent</div><div class="ap-stat-val" id="top-lis">—</div><div class="ap-stat-sub" id="top-lis-sub">—</div></div>
+        <div class="ap-stat purple" style="flex:1"><div class="ap-stat-lbl">Top Pipeline Agent</div><div class="ap-stat-val" id="top-pipe">—</div><div class="ap-stat-sub" id="top-pipe-sub">—</div></div>
+        <div class="ap-stat gold" style="flex:1"><div class="ap-stat-lbl">Top CFA Agent</div><div class="ap-stat-val" id="top-cfa">—</div><div class="ap-stat-sub" id="top-cfa-sub">—</div></div>
+      </div>
+    </div>
+    <div id="ap-body">
+      <div class="ap-chart-card">
+        <div class="ap-chart-head"><div><div class="ap-chart-title">HR Screening Telephonic</div><div class="ap-chart-sub">6 mins/unit</div></div><div class="ap-chart-total" id="apt-hrs" style="background:var(--c10);color:var(--c);border:1px solid var(--c25)">—</div></div>
+        <div class="ap-chart-wrap"><canvas id="apc-hrs"></canvas></div>
+      </div>
+      <div class="ap-chart-card">
+        <div class="ap-chart-head"><div><div class="ap-chart-title">Applicant LI / Resume Screening</div><div class="ap-chart-sub">1.5 mins/unit</div></div><div class="ap-chart-total" id="apt-lis" style="background:var(--blue10);color:var(--blue);border:1px solid var(--blue25)">—</div></div>
+        <div class="ap-chart-wrap"><canvas id="apc-lis"></canvas></div>
+      </div>
+      <div class="ap-chart-card">
+        <div class="ap-chart-head"><div><div class="ap-chart-title">Pipeline LI / Resume Screening</div><div class="ap-chart-sub">2 mins/unit</div></div><div class="ap-chart-total" id="apt-pipe" style="background:var(--purple10);color:var(--purple);border:1px solid var(--purple25)">—</div></div>
+        <div class="ap-chart-wrap"><canvas id="apc-pipe"></canvas></div>
+      </div>
+      <div class="ap-chart-card">
+        <div class="ap-chart-head"><div><div class="ap-chart-title">Culture Fit Assessments</div><div class="ap-chart-sub">45 mins/unit</div></div><div class="ap-chart-total" id="apt-cfa" style="background:var(--green10);color:var(--green);border:1px solid var(--green25)">—</div></div>
+        <div class="ap-chart-wrap"><canvas id="apc-cfa"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════ PAGE: ATTRITION 2026 ════════════ -->
+  <div id="page-attrition">
+    <div class="topbar">
+      <div class="page-title">Attrition 2026</div>
+      <div class="tb-right">
+        <div id="atr-date" style="font-size:11px;color:var(--muted);padding:4px 11px;border:1px solid var(--b1);border-radius:5px;background:var(--s1)">📅 —</div>
+        <button class="sync-btn" onclick="doSync()"><span class="sync-icon">⟳</span><span>Sync</span></button>
+      </div>
+    </div>
+    <div class="atr-body" id="atr-body">
+      <div class="loading"><div class="spinner"></div><span>Loading attrition data…</span></div>
+    </div>
+  </div>
+
+</div>
+
+<script src="dashboard.js"></script>
+
+</body>
+</html>
